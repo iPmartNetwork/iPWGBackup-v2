@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-
 echo "==============================="
 echo " iPWGBackup Auto Installer "
 echo "==============================="
@@ -11,11 +10,10 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-# Ask Telegram info
+# Telegram info
 read -rp "🔑 Enter Telegram Bot Token: " TG_TOKEN
 read -rp "👤 Enter Telegram Admin Chat ID: " TG_CHAT_ID
 
-# Basic validation
 if [[ -z "$TG_TOKEN" || -z "$TG_CHAT_ID" ]]; then
   echo "❌ Telegram credentials cannot be empty"
   exit 1
@@ -27,16 +25,14 @@ CONFIG_FILE="$INSTALL_DIR/config.env"
 
 echo "📦 Installing dependencies..."
 apt update -y
-apt install -y python3 python3-pip git wireguard curl
+apt install -y python3 python3-pip git wireguard curl tar
 
 pip3 install --upgrade pip
 pip3 install requests
 
 echo "📥 Installing iPWGBackup..."
 if [[ -d "$INSTALL_DIR" ]]; then
-  echo "🔄 Updating existing installation..."
-  cd "$INSTALL_DIR"
-  git pull
+  cd "$INSTALL_DIR" && git pull
 else
   git clone https://github.com/iPmartNetwork/iPWGBackup.git "$INSTALL_DIR"
 fi
@@ -54,7 +50,6 @@ TG_TOKEN=$TG_TOKEN
 TG_CHAT_ID=$TG_CHAT_ID
 BACKUP_DIR=$BACKUP_DIR
 EOF
-
 chmod 600 "$CONFIG_FILE"
 
 # systemd service
@@ -74,11 +69,7 @@ from ipwgbackup.core.backup import run_backup
 from ipwgbackup.targets.telegram import send_telegram
 
 path = run_backup()
-send_telegram(
-    os.environ["TG_TOKEN"],
-    os.environ["TG_CHAT_ID"],
-    path
-)
+send_telegram(os.environ["TG_TOKEN"], os.environ["TG_CHAT_ID"], path)
 PY
 EOF
 
