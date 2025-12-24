@@ -1,60 +1,60 @@
 #!/bin/bash
 # ====================================================
-# iPWGBackup Auto Fix & Update Script
+# iPWGBackup Ultimate Installer & Telegram Auto Backup
 # ====================================================
-# This script updates iPWGBackup, installs required Python packages,
-# and ensures the systemd service is properly set up.
-# ====================================================
-
 set -e
 
-# -------------------------------
-# Variables
-# -------------------------------
 INSTALL_DIR="/root/iPWGBackup-v2"
 SERVICE_NAME="ipwgbackup-bot.service"
 PYTHON_BIN=$(which python3 || echo "/usr/bin/python3")
 
 # -------------------------------
-# Check Installation Directory
+# Prompt Telegram Info
+# -------------------------------
+echo "📨 Enter your Telegram Bot Token:"
+read -r TELEGRAM_TOKEN
+echo "📨 Enter your Telegram Chat ID:"
+read -r TELEGRAM_CHAT_ID
+
+# -------------------------------
+# Clone or Update Repository
 # -------------------------------
 if [ ! -d "$INSTALL_DIR" ]; then
-    echo "❌ Installation directory not found: $INSTALL_DIR"
-    echo "Please make sure iPWGBackup is installed correctly."
-    exit 1
+    echo "📥 Cloning iPWGBackup repository..."
+    git clone https://github.com/iPmartNetwork/iPWGBackup-v2.git "$INSTALL_DIR"
+else
+    echo "🔄 Repository exists. Updating..."
+    cd "$INSTALL_DIR"
+    git fetch origin
+    git reset --hard origin/master
 fi
 
 cd "$INSTALL_DIR"
 
 # -------------------------------
-# Update Repository
+# Write Telegram Config
 # -------------------------------
-echo "🔄 Updating iPWGBackup repository..."
-git fetch origin
-git reset --hard origin/master
-echo "✅ Repository updated."
+cat > "$INSTALL_DIR/config.env" <<EOF
+TELEGRAM_TOKEN="$TELEGRAM_TOKEN"
+TELEGRAM_CHAT_ID="$TELEGRAM_CHAT_ID"
+EOF
 
 # -------------------------------
 # Install Python Requirements
 # -------------------------------
 REQ_FILE="$INSTALL_DIR/requirements.txt"
-
 if [ -f "$REQ_FILE" ]; then
     echo "📦 Installing Python packages..."
     $PYTHON_BIN -m pip install --upgrade pip
     $PYTHON_BIN -m pip install -r "$REQ_FILE"
-    echo "✅ Python packages installed."
 else
-    echo "⚠️ requirements.txt not found in $INSTALL_DIR. Skipping Python packages installation."
+    echo "⚠️ requirements.txt not found. Skipping Python packages installation."
 fi
 
 # -------------------------------
 # Setup systemd Service
 # -------------------------------
 SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME"
-
-echo "🔧 Setting up systemd service..."
-
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=iPWGBackup Bot Service
@@ -65,6 +65,7 @@ User=root
 WorkingDirectory=$INSTALL_DIR
 ExecStart=$PYTHON_BIN $INSTALL_DIR/wg_backup.py
 Restart=always
+EnvironmentFile=$INSTALL_DIR/config.env
 
 [Install]
 WantedBy=multi-user.target
@@ -76,8 +77,29 @@ systemctl enable "$SERVICE_NAME"
 systemctl restart "$SERVICE_NAME"
 
 # -------------------------------
+# Setup Auto Backup Every 12 Hours via systemd Timer
+# -------------------------------
+TIMER_FILE="/etc/systemd/system/ipwgbackup-bot.timer"
+cat > "$TIMER_FILE" <<EOF
+[Unit]
+Description=Run iPWGBackup Bot every 12 hours
+
+[Timer]
+OnCalendar=*-*-* 00,12:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable ipwgbackup-bot.timer
+systemctl start ipwgbackup-bot.timer
+
+# -------------------------------
 # Final Status
 # -------------------------------
-echo "✅ iPWGBackup service is now running."
+echo "✅ iPWGBackup service is running and will send backup to Telegram every 12 hours."
 systemctl status "$SERVICE_NAME" --no-pager
-echo "🎉 Update and service setup completed successfully!"
+systemctl status ipwgbackup-bot.timer --no-pager
+echo "🎉 Installation & Telegram Auto Backup setup completed successfully!"
