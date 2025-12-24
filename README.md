@@ -17,7 +17,8 @@ iPWGBackup یک ابزار حرفه‌ای و خودکار برای بکاپ و 
 ## نصب سریع
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/iPmartNetwork/iPWGBackup/main/install.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/iPmartNetwork/iPWGBackup-v2/master/install.sh)
+
 
 ```
 
