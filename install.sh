@@ -1,6 +1,6 @@
 #!/bin/bash
 # ====================================================
-# iPWGBackup Ultimate Installer & Telegram Auto Backup
+# iPWGBackup Ultimate Installer & Telegram Auto Backup (v3)
 # ====================================================
 set -e
 
@@ -12,9 +12,9 @@ PYTHON_BIN=$(which python3 || echo "/usr/bin/python3")
 # -------------------------------
 # Prompt Telegram Info
 # -------------------------------
-echo "📨 Enter your Telegram Bot Token:"
+echo "📨 Enter your Telegram Bot Token (example: 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11):"
 read -r TELEGRAM_TOKEN
-echo "📨 Enter your Telegram Chat ID:"
+echo "📨 Enter your Telegram Chat ID (example: 987654321):"
 read -r TELEGRAM_CHAT_ID
 
 # -------------------------------
@@ -115,8 +115,10 @@ if [ ! -f "$INSTALL_DIR/config.env" ]; then
     exit 1
 fi
 
+# Load Telegram variables
 source "$INSTALL_DIR/config.env"
 
+# Run backup manually
 echo "📤 Running manual backup..."
 $PYTHON_BIN "$INSTALL_DIR/wg_backup.py" --manual
 echo "✅ Manual backup completed."
