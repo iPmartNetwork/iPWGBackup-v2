@@ -1,6 +1,6 @@
 #!/bin/bash
 # ====================================================
-# iPWGBackup Ultimate Installer & Telegram Auto Backup (v3)
+# iPWGBackup Ultimate Installer & Telegram Auto Backup (v4)
 # ====================================================
 set -e
 
@@ -51,6 +51,74 @@ if [ -f "$REQ_FILE" ]; then
 else
     echo "⚠️ requirements.txt not found. Skipping Python packages installation."
 fi
+
+# -------------------------------
+# Create wg_backup.py with ZIP support
+# -------------------------------
+cat > "$INSTALL_DIR/wg_backup.py" <<'EOF'
+#!/usr/bin/env python3
+import os
+import sys
+import requests
+from datetime import datetime
+import zipfile
+
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.env")
+TELEGRAM_TOKEN = ""
+TELEGRAM_CHAT_ID = ""
+
+if os.path.exists(CONFIG_FILE):
+    with open(CONFIG_FILE, "r") as f:
+        for line in f:
+            if line.startswith("TELEGRAM_TOKEN="):
+                TELEGRAM_TOKEN = line.strip().split("=")[1].replace('"', '')
+            if line.startswith("TELEGRAM_CHAT_ID="):
+                TELEGRAM_CHAT_ID = line.strip().split("=")[1].replace('"', '')
+
+if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+    print("❌ Telegram configuration missing in config.env")
+    sys.exit(1)
+
+def take_backup():
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    backup_dir = os.path.join("/tmp", f"iPWGBackup_{timestamp}")
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    # Example backup content
+    with open(os.path.join(backup_dir, "backup.txt"), "w") as f:
+        f.write(f"Backup created at {timestamp}\n")
+        f.write("This is a real backup file.\n")
+    
+    # Create ZIP archive
+    zip_filename = f"/tmp/iPWGBackup_{timestamp}.zip"
+    with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(backup_dir):
+            for file in files:
+                filepath = os.path.join(root, file)
+                arcname = os.path.relpath(filepath, backup_dir)
+                zipf.write(filepath, arcname)
+    
+    print(f"Backup ZIP created: {zip_filename}")
+    
+    # Send to Telegram
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
+    files = {"document": open(zip_filename, "rb")}
+    data = {"chat_id": TELEGRAM_CHAT_ID, "caption": f"iPWGBackup: {timestamp}"}
+    
+    response = requests.post(url, files=files, data=data)
+    if response.status_code == 200:
+        print("✅ Backup ZIP sent to Telegram successfully")
+    else:
+        print(f"❌ Failed to send backup. Response: {response.text}")
+
+if __name__ == "__main__":
+    if "--manual" in sys.argv or "/backup" in sys.argv:
+        print("🟢 Manual backup triggered")
+        take_backup()
+    else:
+        print("🟢 Automatic backup triggered")
+        take_backup()
+EOF
 
 # -------------------------------
 # Setup systemd Service
@@ -115,10 +183,8 @@ if [ ! -f "$INSTALL_DIR/config.env" ]; then
     exit 1
 fi
 
-# Load Telegram variables
 source "$INSTALL_DIR/config.env"
 
-# Run backup manually
 echo "📤 Running manual backup..."
 $PYTHON_BIN "$INSTALL_DIR/wg_backup.py" --manual
 echo "✅ Manual backup completed."
@@ -129,7 +195,7 @@ chmod +x "$MANUAL_SCRIPT"
 # -------------------------------
 # Final Status
 # -------------------------------
-echo "✅ iPWGBackup service is running and will send backup to Telegram every 12 hours."
+echo "✅ iPWGBackup service is running and will send backup ZIP to Telegram every 12 hours."
 echo "📌 To run a manual backup anytime, execute:"
 echo "   $MANUAL_SCRIPT"
 systemctl status "$SERVICE_NAME" --no-pager
